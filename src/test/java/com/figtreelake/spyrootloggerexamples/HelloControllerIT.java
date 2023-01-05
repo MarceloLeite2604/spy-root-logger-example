@@ -8,16 +8,18 @@ import com.figtreelake.spyrootlogger.SpyRootLoggerInject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.autoconfigure.web.client.AutoConfigureWebClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureWebClient
@@ -62,6 +64,7 @@ class HelloControllerIT {
         .expectStatus()
         .isBadRequest();
 
+    /* Spy Root Logger can be used to count events of different types. */
     assertThat(spyRootLogger.countWarningEvents()).isPositive();
   }
 
@@ -77,7 +80,12 @@ class HelloControllerIT {
         .expectStatus()
         .isBadRequest();
 
+    /* Spy Root Logger can be used to retrieve all events which have a specific
+    type of throwable attached. */
     final var events = spyRootLogger.findEventsByInstanceOfThrowableAttached(DangerousContentException.class);
+
+    /* A log event contains the level, message and the throwable attached to it
+    (if any). These fields can be used to analyse and create assertions. */
     assertThat(events).isNotEmpty()
         .allMatch(event -> Level.ERROR.equals(event.getLevel()));
   }
@@ -86,9 +94,9 @@ class HelloControllerIT {
   void shouldReturnHttpStatusInternalServerErrorAndLogErrorEventWithCapturedExceptionWhenAnUnknownExceptionOccurs() {
     final var name = "MarceloLeite2604";
 
-    final var exceptionClass = IllegalStateException.class;
+    final var mockedIllegalStateException = mock(IllegalStateException.class);
 
-    doThrow(exceptionClass).when(helloService)
+    doThrow(mockedIllegalStateException).when(helloService)
         .elaborateGreeting(any());
 
     webTestClient.get()
@@ -99,9 +107,15 @@ class HelloControllerIT {
         .expectStatus()
         .isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
 
-    final var events = spyRootLogger.findEventsByInstanceOfThrowableAttached(exceptionClass);
+    /* Spy Root Logger can also find events with a specific exception attached. */
+    final var events = spyRootLogger.findEventsByThrowableAttached(mockedIllegalStateException);
     assertThat(events).isNotEmpty()
         .allMatch(event -> Level.ERROR.equals(event.getLevel()));
   }
 
+  @SpringBootApplication
+  @EnableAutoConfiguration
+  @ComponentScan
+  public static class ITConfig {
+  }
 }
